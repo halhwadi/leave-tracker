@@ -2,7 +2,24 @@ services:
   - type: web
     name: adx-leave-tracker
     env: python
-    buildCommand: pip install -r requirements.txt && python init_db.py
+    buildCommand: pip install -r requirements.txt && python init_db.py && python migrate.py
+```
+
+**OR**
+
+**Option B: Edit in Render Dashboard**
+
+1. Go to Render Dashboard
+2. Click your service
+3. Go to **Settings**
+4. Find **Build Command**
+5. Change from:
+```
+   pip install -r requirements.txt && python init_db.py
+```
+   To:
+```
+   pip install -r requirements.txt && python init_db.py && python migrate.py
     startCommand: python app.py
     envVars:
       - key: SMTP_PASSWORD
