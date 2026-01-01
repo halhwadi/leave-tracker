@@ -37,7 +37,14 @@ class TeamMember(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships
-    leave_requests = db.relationship('LeaveRequest', backref='employee', lazy=True)
+    leave_requests = db.relationship('LeaveRequest', 
+                                 foreign_keys='LeaveRequest.employee_id',
+                                 backref='employee', 
+                                 lazy=True)
+    approved_leaves = db.relationship('LeaveRequest',
+                                 foreign_keys='LeaveRequest.approved_by',
+                                 backref='approver',
+                                 lazy=True)
     
     def __repr__(self):
         return f'<TeamMember {self.name} - {self.stream}>'
