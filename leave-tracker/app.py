@@ -110,6 +110,7 @@ class LeaveRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('team_members.id'), nullable=False)
     leave_type = db.Column(db.String(20), nullable=False)  # Annual, Sick
+    day_type = db.Column(db.String(20), default='Full Day')  # Full Day, Half Day, Quarter Day
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     working_days = db.Column(db.Float, nullable=False)
@@ -395,10 +396,19 @@ def submit_leave_request():
     leave_type = request.form.get('leave_type')
     start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
     end_date = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
+    day_type = request.form.get('day_type', 'Full Day')
     reason = request.form.get('reason', '')
     
     # Calculate working days
-    working_days = calculate_working_days(start_date, end_date, user.location)
+    base_working_days = calculate_working_days(start_date, end_date, user.location)
+    
+    # Apply day type multiplier
+    if day_type == 'Half Day':
+        working_days = base_working_days * 0.5
+    elif day_type == 'Quarter Day':
+        working_days = base_working_days * 0.25
+    else:  # Full Day
+        working_days = base_working_days
     
     # Check sufficient balance
     sufficient, current_balance, remaining = check_sufficient_balance(user.id, leave_type, working_days)
@@ -427,9 +437,11 @@ def submit_leave_request():
         return redirect(url_for('leave_request'))
     
     # Create leave request
+    # Create leave request
     leave_req = LeaveRequest(
         employee_id=user.id,
         leave_type=leave_type,
+        day_type=day_type,
         start_date=start_date,
         end_date=end_date,
         working_days=working_days,
