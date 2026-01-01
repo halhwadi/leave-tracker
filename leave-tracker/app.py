@@ -222,7 +222,10 @@ def check_overlap(employee_id, start_date, end_date, exclude_request_id=None):
         return False, None, None
     
     # Get all approved leaves from same stream (excluding this employee)
-    query = db.session.query(LeaveRequest).join(TeamMember).filter(
+    query = db.session.query(LeaveRequest).join(
+        TeamMember,
+        LeaveRequest.employee_id == TeamMember.id
+    ).filter(
         TeamMember.stream == employee.stream,
         TeamMember.id != employee_id,
         LeaveRequest.status == 'Approved',
@@ -480,12 +483,7 @@ def my_leaves():
 def team_leaves():
     """View all team leaves"""
     user = TeamMember.query.get(session['user_id'])
-    # Specify which foreign key to use for the join (employee_id, not approved_by)
-    leaves = LeaveRequest.query.join(
-        TeamMember, 
-        LeaveRequest.employee_id == TeamMember.id
-    ).order_by(LeaveRequest.submitted_at.desc()).all()
-    
+    leaves = LeaveRequest.query.order_by(LeaveRequest.submitted_at.desc()).all()
     return render_template('team_leaves.html', user=user, leaves=leaves)
 
 
