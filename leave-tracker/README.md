@@ -49,7 +49,7 @@ Professional leave management system for ADX Team with calendar view and sprint 
 
 - **Backend:** Python Flask
 - **Database:** SQLite
-- **Email:** Outlook SMTP (smtp.office365.com)
+- **Email:** Outlook SMTP (smtp.office365.com) (Not used currently for security reason)
 - **Frontend:** HTML/CSS/JavaScript + Bootstrap
 - **Calendar:** FullCalendar.js
 
