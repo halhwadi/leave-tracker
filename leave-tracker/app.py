@@ -746,10 +746,37 @@ def api_cancel_leave(leave_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        
+        # Run migration to add day_type column if missing
+        import sqlite3
+        import os
+        
+        if os.path.exists('leaves.db'):
+            try:
+                conn = sqlite3.connect('leaves.db')
+                cursor = conn.cursor()
+                
+                # Check if day_type column exists
+                cursor.execute("PRAGMA table_info(leave_requests)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'day_type' not in columns:
+                    print("➕ Adding day_type column...")
+                    cursor.execute("ALTER TABLE leave_requests ADD COLUMN day_type VARCHAR(20) DEFAULT 'Full Day'")
+                    conn.commit()
+                    print("✅ Migration: day_type column added!")
+                else:
+                    print("✅ day_type column already exists")
+                    
+                conn.close()
+            except Exception as e:
+                print(f"Migration note: {e}")
     
-    # Get port from environment variable (Render uses PORT)
-    import os
-    port = int(os.environ.get('PORT', 5000))
-    
-    # Run app
-    app.run(debug=False, host='0.0.0.0', port=port)
+            # Get port from environment variable (Render uses PORT)
+            import os
+            port = int(os.environ.get('PORT', 5000))
+            
+            # Run app
+            app.run(debug=False, host='0.0.0.0', port=port)
+
+
