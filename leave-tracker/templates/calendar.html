@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - Leave Tracker{% endblock %}
+
+{% block extra_css %}
+<!-- FullCalendar CSS -->
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+<style>
+    #calendar {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .fc-event {
+        cursor: pointer;
+    }
+    
+    .legend-item {
+        display: inline-block;
+        margin-right: 20px;
+        margin-bottom: 10px;
+    }
+    
+    .legend-color {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+    
+    .holiday-uae { background-color: #2196F3; }
+    .holiday-india { background-color: #FF9800; }
+    .holiday-both { background-color: #4CAF50; }
+    .leave-event { background-color: #F44336; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h2><i class="fas fa-calendar-alt"></i> Calendar View</h2>
+        <p class="text-muted">View team leaves and holidays</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">Filter by Stream</label>
+                        <select class="form-select" id="streamFilter">
+                            <option value="">All Streams</option>
+                            <option value="CRM">CRM</option>
+                            <option value="EIP">EIP</option>
+                            <option value="Website">Website</option>
+                            <option value="Mobile">Mobile</option>
+                            <option value="QA">QA</option>
+                            <option value="Sitecore">Sitecore</option>
+                            <option value="Devops">DevOps</option>
+                            <option value="BA">BA</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label">Filter by Location</label>
+                        <select class="form-select" id="locationFilter">
+                            <option value="">All Locations</option>
+                            <option value="UAE">UAE</option>
+                            <option value="India">India</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label">Show</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showHolidays" checked>
+                            <label class="form-check-label" for="showHolidays">
+                                Holidays
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showLeaves" checked>
+                            <label class="form-check-label" for="showLeaves">
+                                Team Leaves
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <button class="btn btn-primary w-100" id="applyFilters">
+                            <i class="fas fa-filter"></i> Apply Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title mb-3">Legend</h6>
+                <div class="legend-item">
+                    <span class="legend-color holiday-uae"></span>
+                    <span>UAE Holidays</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color holiday-india"></span>
+                    <span>India Holidays</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color holiday-both"></span>
+                    <span>Both Locations</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color leave-event"></span>
+                    <span>Team Leaves</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div id='calendar'></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalTitle">Event Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventModalBody">
+                <!-- Event details will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+
+<script>
+let calendar;
+let allEvents = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    
+    // Initialize calendar
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listMonth'
+        },
+        events: [],
+        eventClick: function(info) {
+            showEventDetails(info.event);
+        },
+        height: 'auto',
+        eventDisplay: 'block'
+    });
+    
+    calendar.render();
+    
+    // Load events
+    loadEvents();
+    
+    // Filter buttons
+    document.getElementById('applyFilters').addEventListener('click', applyFilters);
+});
+
+function loadEvents() {
+    fetch('/api/calendar/events')
+        .then(response => response.json())
+        .then(data => {
+            allEvents = data.events;
+            applyFilters();
+        })
+        .catch(error => {
+            console.error('Error loading events:', error);
+            alert('Failed to load calendar events');
+        });
+}
+
+function applyFilters() {
+    const streamFilter = document.getElementById('streamFilter').value;
+    const locationFilter = document.getElementById('locationFilter').value;
+    const showHolidays = document.getElementById('showHolidays').checked;
+    const showLeaves = document.getElementById('showLeaves').checked;
+    
+    let filteredEvents = allEvents.filter(event => {
+        // Filter by type
+        if (event.type === 'holiday' && !showHolidays) return false;
+        if (event.type === 'leave' && !showLeaves) return false;
+        
+        // Filter by location (for holidays and leaves)
+        if (locationFilter) {
+            if (event.type === 'holiday') {
+                if (event.location !== locationFilter && event.location !== 'Both') {
+                    return false;
+                }
+            } else if (event.type === 'leave') {
+                if (event.employee_location !== locationFilter) {
+                    return false;
+                }
+            }
+        }
+        
+        // Filter by stream (for leaves only)
+        if (streamFilter && event.type === 'leave') {
+            if (event.stream !== streamFilter) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    // Remove all events and add filtered ones
+    calendar.removeAllEvents();
+    calendar.addEventSource(filteredEvents);
+}
+
+function showEventDetails(event) {
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+    const title = document.getElementById('eventModalTitle');
+    const body = document.getElementById('eventModalBody');
+    
+    title.textContent = event.title;
+    
+    let html = '';
+    
+    if (event.extendedProps.type === 'holiday') {
+        html = `
+            <p><strong>Date:</strong> ${formatDate(event.start)}</p>
+            <p><strong>Location:</strong> ${event.extendedProps.location}</p>
+            <p><strong>Type:</strong> Public Holiday</p>
+        `;
+    } else {
+        html = `
+            <p><strong>Employee:</strong> ${event.extendedProps.employee_name}</p>
+            <p><strong>Email:</strong> ${event.extendedProps.employee_email}</p>
+            <p><strong>Stream:</strong> ${event.extendedProps.stream}</p>
+            <p><strong>Location:</strong> ${event.extendedProps.employee_location}</p>
+            <p><strong>Leave Type:</strong> ${event.extendedProps.leave_type}</p>
+            <p><strong>Period:</strong> ${formatDate(event.start)} to ${formatDate(event.end)}</p>
+            <p><strong>Working Days:</strong> ${event.extendedProps.working_days} days</p>
+            <p><strong>Status:</strong> 
+                <span class="badge bg-${event.extendedProps.status === 'Approved' ? 'success' : 'warning'}">
+                    ${event.extendedProps.status}
+                </span>
+            </p>
+        `;
+    }
+    
+    body.innerHTML = html;
+    modal.show();
+}
+
+function formatDate(date) {
+    return new Date(date).toLocaleDateString('en-GB', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+    });
+}
+</script>
+{% endblock %}

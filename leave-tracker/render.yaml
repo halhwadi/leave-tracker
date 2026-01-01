@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: adx-leave-tracker
+    env: python
+    buildCommand: pip install -r requirements.txt && python init_db.py
+    startCommand: python app.py
+    envVars:
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0

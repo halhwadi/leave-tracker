@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Leave Tracker{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h2><i class="fas fa-user-shield"></i> Admin Panel</h2>
+        <p class="text-muted">Approve or reject leave requests</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="fas fa-clock"></i> Pending Leave Requests ({{ pending_leaves|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_leaves %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Stream</th>
+                                <th>Type</th>
+                                <th>Period</th>
+                                <th>Days</th>
+                                <th>Balance After</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for leave in pending_leaves %}
+                            <tr id="leave-{{ leave.id }}">
+                                <td>
+                                    <strong>{{ leave.employee.name }}</strong><br>
+                                    <small class="text-muted">{{ leave.employee.email }}</small>
+                                </td>
+                                <td><span class="badge bg-secondary">{{ leave.employee.stream }}</span></td>
+                                <td><span class="badge bg-info">{{ leave.leave_type }}</span></td>
+                                <td>
+                                    {{ leave.start_date.strftime('%d %b') }} - 
+                                    {{ leave.end_date.strftime('%d %b %Y') }}
+                                </td>
+                                <td>{{ leave.working_days }}</td>
+                                <td>
+                                    {% set balance = leave.employee.get_balance(leave.leave_type) - leave.working_days %}
+                                    <span class="badge bg-{{ 'success' if balance >= 0 else 'danger' }}">
+                                        {{ balance }} days
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" onclick="approveLeave({{ leave.id }}, false)">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="rejectLeave({{ leave.id }})">
+                                        <i class="fas fa-times"></i> Reject
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" onclick="showOverrideModal({{ leave.id }}, '{{ leave.employee.name }}')">
+                                        <i class="fas fa-unlock"></i> Override
+                                    </button>
+                                </td>
+                            </tr>
+                            {% if leave.reason %}
+                            <tr class="table-light">
+                                <td colspan="7">
+                                    <small><strong>Reason:</strong> {{ leave.reason }}</small>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <p class="text-muted">No pending leave requests</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Override Modal -->
+<div class="modal fade" id="overrideModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">Manager Override</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <strong>Warning:</strong> You are about to override validation rules for 
+                    <span id="overrideEmployeeName"></span>.
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Reason for Override <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="overrideReason" rows="3" required 
+                              placeholder="e.g., Emergency leave, Special approval from management"></textarea>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmOverride" required>
+                    <label class="form-check-label" for="confirmOverride">
+                        I understand this bypasses normal validation and accept responsibility
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmOverrideBtn" onclick="confirmOverride()">
+                    <i class="fas fa-unlock"></i> Approve with Override
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Reject Leave Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Reason for Rejection (Optional)</label>
+                    <textarea class="form-control" id="rejectionReason" rows="3" 
+                              placeholder="Provide a reason to help the employee understand"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmReject()">
+                    <i class="fas fa-times"></i> Confirm Rejection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentLeaveId = null;
+
+function approveLeave(leaveId, override = false) {
+    if (!override) {
+        if (!confirm('Approve this leave request?')) return;
+    }
+    
+    fetch(`/api/admin/approve/${leaveId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ override: override })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(`leave-${leaveId}`).remove();
+            alert('Leave approved! Email notification sent.');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function rejectLeave(leaveId) {
+    currentLeaveId = leaveId;
+    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+
+function confirmReject() {
+    const reason = document.getElementById('rejectionReason').value;
+    
+    fetch(`/api/admin/reject/${currentLeaveId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();
+            document.getElementById(`leave-${currentLeaveId}`).remove();
+            alert('Leave rejected. Email notification sent.');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function showOverrideModal(leaveId, employeeName) {
+    currentLeaveId = leaveId;
+    document.getElementById('overrideEmployeeName').textContent = employeeName;
+    document.getElementById('overrideReason').value = '';
+    document.getElementById('confirmOverride').checked = false;
+    
+    const modal = new bootstrap.Modal(document.getElementById('overrideModal'));
+    modal.show();
+}
+
+function confirmOverride() {
+    const reason = document.getElementById('overrideReason').value.trim();
+    const confirmed = document.getElementById('confirmOverride').checked;
+    
+    if (!reason) {
+        alert('Please provide a reason for override');
+        return;
+    }
+    
+    if (!confirmed) {
+        alert('Please confirm you understand the override');
+        return;
+    }
+    
+    fetch(`/api/admin/override/${currentLeaveId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            override: true,
+            reason: reason 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('overrideModal')).hide();
+            document.getElementById(`leave-${currentLeaveId}`).remove();
+            alert('Leave approved with override. Notifications sent.');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+</script>
+{% endblock %}

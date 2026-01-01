@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Sprint Capacity - Leave Tracker{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h2><i class="fas fa-chart-line"></i> Sprint Capacity Planning</h2>
+        <p class="text-muted">Plan sprint capacity with holidays and leaves</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-tools fa-4x text-muted mb-3"></i>
+                <h4>Sprint Capacity Feature - Coming Soon!</h4>
+                <p class="text-muted">This feature will show:</p>
+                <ul class="text-start" style="max-width: 500px; margin: 0 auto;">
+                    <li>Current and next sprint dates</li>
+                    <li>Team capacity by stream</li>
+                    <li>Impact of holidays on capacity</li>
+                    <li>Approved leaves reducing capacity</li>
+                    <li>Visual capacity charts</li>
+                </ul>
+                <hr class="my-4">
+                <p class="text-muted">For now, use the Calendar view to see team availability</p>
+                <a href="{{ url_for('calendar_view') }}" class="btn btn-primary">
+                    <i class="fas fa-calendar-alt"></i> Go to Calendar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

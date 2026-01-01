@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Request Leave - Leave Tracker{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-plus-circle"></i> Request Leave</h4>
+            </div>
+            <div class="card-body">
+                <form id="leaveForm" method="POST" action="{{ url_for('submit_leave_request') }}">
+                    <!-- Leave Type -->
+                    <div class="mb-3">
+                        <label for="leave_type" class="form-label">Leave Type <span class="text-danger">*</span></label>
+                        <select class="form-select" id="leave_type" name="leave_type" required>
+                            <option value="">Select leave type...</option>
+                            <option value="Annual">Annual Leave</option>
+                            <option value="Sick">Sick Leave</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Date Range -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="start_date" 
+                                   name="start_date" 
+                                   min="{{ today }}"
+                                   required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="end_date" class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="end_date" 
+                                   name="end_date"
+                                   min="{{ today }}"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <!-- Reason (Optional) -->
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">Reason (Optional)</label>
+                        <textarea class="form-control" 
+                                  id="reason" 
+                                  name="reason" 
+                                  rows="3" 
+                                  placeholder="Brief description of leave reason"></textarea>
+                    </div>
+                    
+                    <!-- Validation Summary Card -->
+                    <div id="validationSummary" class="card mb-3" style="display:none;">
+                        <div class="card-body">
+                            <h6 class="card-title">Leave Summary</h6>
+                            <div id="summaryContent"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Balance Display -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Current Balance</h6>
+                                    <p id="currentBalance" class="card-text h4">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Balance After Approval</h6>
+                                    <p id="remainingBalance" class="card-text h4">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Messages -->
+                    <div id="errorMessages" class="alert alert-danger" style="display:none;">
+                        <ul id="errorList" class="mb-0"></ul>
+                    </div>
+                    
+                    <!-- Warning Messages -->
+                    <div id="warningMessages" class="alert alert-warning" style="display:none;">
+                        <ul id="warningList" class="mb-0"></ul>
+                    </div>
+                    
+                    <!-- Success Messages -->
+                    <div id="successMessages" class="alert alert-success" style="display:none;">
+                        <p id="successText" class="mb-0"></p>
+                    </div>
+                    
+                    <!-- Submit Buttons -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                            <i class="fas fa-paper-plane"></i> Submit Leave Request
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Help Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Important Notes</h6>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 small">
+                    <li>Working days are calculated automatically (excludes weekends and {{ user.location }} holidays)</li>
+                    <li>Only one team member per stream can be on leave at the same time</li>
+                    <li>Leave requests require approval from Scrum Masters</li>
+                    <li>You'll receive email confirmation once your request is approved/rejected</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// User data from backend
+const userData = {
+    id: {{ user.id }},
+    location: "{{ user.location }}",
+    stream: "{{ user.stream }}",
+    annualBalance: {{ annual_balance }},
+    sickBalance: {{ sick_balance }}
+};
+
+// Form elements
+const form = document.getElementById('leaveForm');
+const leaveType = document.getElementById('leave_type');
+const startDate = document.getElementById('start_date');
+const endDate = document.getElementById('end_date');
+const submitBtn = document.getElementById('submitBtn');
+
+// Display elements
+const validationSummary = document.getElementById('validationSummary');
+const summaryContent = document.getElementById('summaryContent');
+const currentBalance = document.getElementById('currentBalance');
+const remainingBalance = document.getElementById('remainingBalance');
+const errorMessages = document.getElementById('errorMessages');
+const errorList = document.getElementById('errorList');
+const warningMessages = document.getElementById('warningMessages');
+const warningList = document.getElementById('warningList');
+const successMessages = document.getElementById('successMessages');
+const successText = document.getElementById('successText');
+
+// Real-time validation
+function validateForm() {
+    const type = leaveType.value;
+    const start = startDate.value;
+    const end = endDate.value;
+    
+    // Clear messages
+    errorMessages.style.display = 'none';
+    warningMessages.style.display = 'none';
+    successMessages.style.display = 'none';
+    errorList.innerHTML = '';
+    warningList.innerHTML = '';
+    
+    // Reset submit button
+    submitBtn.disabled = true;
+    
+    if (!type || !start || !end) {
+        validationSummary.style.display = 'none';
+        currentBalance.textContent = '-';
+        remainingBalance.textContent = '-';
+        return;
+    }
+    
+    // Calculate working days
+    fetch('/api/calculate-working-days', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            start_date: start,
+            end_date: end,
+            location: userData.location
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+            return;
+        }
+        
+        const workingDays = data.working_days;
+        const balance = type === 'Annual' ? userData.annualBalance : userData.sickBalance;
+        const remaining = balance - workingDays;
+        
+        // Update balance display
+        currentBalance.textContent = `${balance} days`;
+        remainingBalance.textContent = `${remaining} days`;
+        remainingBalance.className = remaining >= 0 ? 'card-text h4 text-success' : 'card-text h4 text-danger';
+        
+        // Show summary
+        summaryContent.innerHTML = `
+            <p class="mb-1"><strong>Working Days:</strong> ${workingDays} days</p>
+            <p class="mb-1"><strong>Leave Type:</strong> ${type}</p>
+            <p class="mb-0"><strong>Period:</strong> ${formatDate(start)} to ${formatDate(end)}</p>
+        `;
+        validationSummary.style.display = 'block';
+        
+        // Check for issues
+        checkValidation(start, end, workingDays, remaining, type);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('Failed to calculate working days');
+    });
+}
+
+function checkValidation(start, end, workingDays, remaining, type) {
+    const errors = [];
+    const warnings = [];
+    
+    // Check 1: End date before start date
+    if (new Date(end) < new Date(start)) {
+        errors.push('End date must be after start date');
+    }
+    
+    // Check 2: Insufficient balance
+    if (remaining < 0) {
+        errors.push(`Insufficient ${type} leave balance. You need ${Math.abs(remaining)} more days.`);
+    }
+    
+    // Check 3: Check for overlaps
+    fetch('/api/check-overlap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            employee_id: userData.id,
+            start_date: start,
+            end_date: end
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.has_overlap) {
+            errors.push(`Overlap detected: ${data.employee_name} from your stream already has approved leave from ${formatDate(data.dates[0])} to ${formatDate(data.dates[1])}`);
+        }
+        
+        // Check 4: Long leave warning
+        if (workingDays > 15) {
+            warnings.push(`You're requesting ${workingDays} days - this is a long leave period and will require special approval.`);
+        }
+        
+        // Display results
+        displayValidationResults(errors, warnings);
+    });
+}
+
+function displayValidationResults(errors, warnings) {
+    if (errors.length > 0) {
+        errorList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+        errorMessages.style.display = 'block';
+        submitBtn.disabled = true;
+    } else {
+        if (warnings.length > 0) {
+            warningList.innerHTML = warnings.map(w => `<li>${w}</li>`).join('');
+            warningMessages.style.display = 'block';
+        }
+        
+        successText.textContent = '✓ Validation passed! You can submit your leave request.';
+        successMessages.style.display = 'block';
+        submitBtn.disabled = false;
+    }
+}
+
+function showError(message) {
+    errorList.innerHTML = `<li>${message}</li>`;
+    errorMessages.style.display = 'block';
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Event listeners
+leaveType.addEventListener('change', validateForm);
+startDate.addEventListener('change', validateForm);
+endDate.addEventListener('change', validateForm);
+
+// Form submission
+form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (submitBtn.disabled) {
+        return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    
+    // Submit form
+    this.submit();
+});
+</script>
+{% endblock %}
