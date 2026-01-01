@@ -480,7 +480,11 @@ def my_leaves():
 def team_leaves():
     """View all team leaves"""
     user = TeamMember.query.get(session['user_id'])
-    leaves = LeaveRequest.query.join(TeamMember).order_by(LeaveRequest.submitted_at.desc()).all()
+    # Specify which foreign key to use for the join (employee_id, not approved_by)
+    leaves = LeaveRequest.query.join(
+        TeamMember, 
+        LeaveRequest.employee_id == TeamMember.id
+    ).order_by(LeaveRequest.submitted_at.desc()).all()
     
     return render_template('team_leaves.html', user=user, leaves=leaves)
 
